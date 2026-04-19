@@ -97,6 +97,8 @@ public class Config {
                 || FabricLoader.getInstance().isModLoaded("bewitchment");
         @SerializedName("blocked_enchantments")
         public Set<Identifier> skippedEnchantments = new HashSet<>();
+        @SerializedName("blocked_items")
+        public Set<Identifier> blockedItems = new HashSet<>();
     }
 
     @ConfigCategory

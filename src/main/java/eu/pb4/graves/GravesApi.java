@@ -15,6 +15,7 @@ import eu.pb4.graves.other.VanillaInventoryMask;
 import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
@@ -44,10 +45,12 @@ public final class GravesApi {
     }
 
     public static boolean canAddItem(ServerPlayerEntity player, ItemStack itemStack) {
+        var config = ConfigManager.getConfig();
         return !itemStack.isEmpty()
                 && PlayerGraveItemAddedEvent.EVENT.invoker().canAddItem(player, itemStack) != ActionResult.FAIL
                 && !GraveUtils.hasSkippedEnchantment(itemStack)
-                && !EnchantmentHelper.hasVanishingCurse(itemStack);
+                && !EnchantmentHelper.hasVanishingCurse(itemStack)
+                && (config == null || !config.storage.blockedItems.contains(Registries.ITEM.getId(itemStack.getItem())));
     }
 
     @Nullable

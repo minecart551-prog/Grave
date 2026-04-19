@@ -4,9 +4,11 @@ import com.mojang.authlib.GameProfile;
 import eu.pb4.graves.config.ConfigManager;
 import eu.pb4.graves.registry.GraveCompassItem;
 import eu.pb4.graves.other.PlayerAdditions;
+import eu.pb4.graves.other.GraveUtils;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -58,6 +60,36 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
     private void graves$copyDate(ServerPlayerEntity oldPlayer, boolean alive, CallbackInfo ci) {
         this.graves$hasCompass = ((ServerPlayerEntityMixin) (Object) oldPlayer).graves$hasCompass;
         this.graves$location = ((PlayerAdditions) oldPlayer).graves$lastGrave();
+        
+        // Transfer blocked items from old player to new player on death
+        if (!alive) {
+            var oldInventory = oldPlayer.getInventory();
+            var newInventory = this.getInventory();
+            
+            // Copy blocked items from main inventory
+            for (int i = 0; i < oldInventory.main.size(); i++) {
+                ItemStack stack = oldInventory.main.get(i);
+                if (!stack.isEmpty() && GraveUtils.isBlockedItem(stack)) {
+                    // Add to new player's main inventory
+                    newInventory.main.set(i, stack.copy());
+                }
+            }
+            
+            // Copy blocked items from armor
+            for (int i = 0; i < oldInventory.armor.size(); i++) {
+                ItemStack stack = oldInventory.armor.get(i);
+                if (!stack.isEmpty() && GraveUtils.isBlockedItem(stack)) {
+                    // Add to new player's armor
+                    newInventory.armor.set(i, stack.copy());
+                }
+            }
+            
+            // Copy blocked items from offhand
+            ItemStack oldOffhand = oldInventory.offHand.get(0);
+            if (!oldOffhand.isEmpty() && GraveUtils.isBlockedItem(oldOffhand)) {
+                newInventory.offHand.set(0, oldOffhand.copy());
+            }
+        }
     }
 
     @Inject(method = "onDeath", at = @At("HEAD"))

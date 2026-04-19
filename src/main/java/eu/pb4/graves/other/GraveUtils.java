@@ -225,6 +225,11 @@ public class GraveUtils {
         return false;
     }
 
+    public static boolean isBlockedItem(ItemStack stack) {
+        var config = ConfigManager.getConfig();
+        return config != null && config.storage.blockedItems.contains(Registries.ITEM.getId(stack.getItem()));
+    }
+
     public static void teleportToGrave(ServerPlayerEntity player, Grave grave, BooleanConsumer finishedCallback) {
         var config = ConfigManager.getConfig();
         var pos = grave.getLocation();
@@ -281,7 +286,6 @@ public class GraveUtils {
 
     public static void createGrave(ServerPlayerEntity player, DamageSource source) {
         Config config = ConfigManager.getConfig();
-
 
         if (player.getWorld().getGameRules().getBoolean(GameRules.KEEP_INVENTORY)
                 || config.placement.blacklistedWorlds.contains(player.getWorld().getRegistryKey().getValue())
