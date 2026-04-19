@@ -1,0 +1,192 @@
+plugins {
+	id 'fabric-loom' version '1.0.+'
+	id 'maven-publish'
+	id "com.modrinth.minotaur" version "2.+"
+	id 'com.matthewprenger.cursegradle' version '1.4.0'
+}
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+archivesBaseName = project.archives_base_name
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	// You should only use this when depending on other mods because
+	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
+	// for more information about repositories.
+	maven { url 'https://maven.nucleoid.xyz' }
+	maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+	maven { url 'https://api.modrinth.com/maven' }
+	maven { url 'https://jitpack.io' }
+	maven { url "https://maven.shedaniel.me/" }
+	maven {
+		name = "TerraformersMC"
+		url = "https://maven.terraformersmc.com/"
+	}
+
+	maven {
+		name = "Ladysnake Libs"
+		url = "https://maven.ladysnake.org/releases"
+	}
+
+	flatDir {
+		dirs './modsWithCompat'
+	}
+
+	maven {
+		name 'Gegy'
+		url 'https://maven.gegy.dev'
+	}
+
+	maven { url "https://maven.wispforest.io/releases" }
+
+	mavenCentral()
+	mavenLocal()
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+
+	modImplementation include("eu.pb4:sgui:1.2.2+1.20")
+	modImplementation include("eu.pb4:placeholder-api:2.1.3+1.20.1")
+	modImplementation include('xyz.nucleoid:server-translations-api:2.0.0+1.20')
+	modImplementation include('eu.pb4:polymer-core:0.5.19+1.20.1')
+	modImplementation include('eu.pb4:polymer-resource-pack:0.5.19+1.20.1')
+	modImplementation include('eu.pb4:polymer-virtual-entity:0.5.19+1.20.1')
+	modImplementation include('eu.pb4:predicate-api:0.2.1+1.20.1')
+	modImplementation include("eu.pb4:common-protection-api:1.0.0")
+
+	modImplementation include("me.lucko:fabric-permissions-api:0.2-SNAPSHOT")
+
+	modCompileOnly "io.wispforest:accessories-fabric:1.0.0-beta.26+1.20.1"
+	modCompileOnly "dev.emi:trinkets:3.0.4"
+	//modCompileOnly "modrinth.maven:trinkets:3.0.4"
+	modCompileOnly files("modsWithCompat/inventorio-1.17-fabric-1.6.2.jar")
+
+	modCompileOnly "draylar:get-off-my-lawn:1.17-1.4.0-beta"
+	modCompileOnly 'com.jamieswhiteshirt:rtree-3i-lite:0.3.0'
+	modCompileOnly "io.github.onyxstudios.Cardinal-Components-API:cardinal-components-base:3.0.0-nightly.21w19a"
+
+	annotationProcessor("io.github.llamalad7:mixinextras-fabric:0.2.0-rc.1")
+
+	modCompileOnly("com.terraformersmc:modmenu:7.2.2")
+	modLocalRuntime("com.terraformersmc:modmenu:7.2.2")
+
+	// PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
+	// You may need to force-disable transitiveness on them.
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	// ensure that the encoding is set to UTF-8, no matter what the system default is
+	// this fixes some edge cases with special characters not displaying correctly
+	// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+	// If Javadoc is generated, this must be specified in that task too.
+	it.options.encoding = "UTF-8"
+
+	// Minecraft 1.17 (21w19a) upwards uses Java 16.
+	it.options.release = 17
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+}
+
+jar {
+	from("LICENSE") {
+		rename { "${it}_${project.archivesBaseName}"}
+	}
+
+	from("src/main/resources/data/universal_graves/lang") {
+		into("assets/universal_graves/lang")
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			// add all the jars that should be included when publishing to maven
+			artifact(remapJar) {
+				builtBy remapJar
+			}
+			artifact(sourcesJar) {
+				builtBy remapSourcesJar
+			}
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}
+
+curseforge {
+	if (System.getenv("CURSEFORGE")) {
+		apiKey = System.getenv("CURSEFORGE")
+
+		project {
+			id = "497175"
+			releaseType = "release"
+			changelog = System.getenv("CHANGELOG")
+			changelogType = "markdown"
+			addGameVersion((project.minecraft_version.contains("-") ? ((String) project.minecraft_version.split("-")[0] + "-Snapshot") : project.minecraft_version))
+			addGameVersion "Fabric"
+			addGameVersion "Quilt"
+			mainArtifact(remapJar)
+
+			afterEvaluate {
+				uploadTask.dependsOn("remapJar")
+			}
+		}
+	}
+
+	options {
+		forgeGradleIntegration = false
+	}
+
+	remapJar {
+		finalizedBy project.tasks.curseforge
+	}
+}
+
+if (System.getenv("MODRINTH")) {
+	modrinth {
+		token = System.getenv("MODRINTH")
+		projectId = 'yn9u3ypm'
+		versionNumber = "" + version // The version of the mod to upload.
+		uploadFile = remapJar // This links to a task that builds your mod jar and sets "uploadFile" to the mod jar.
+		gameVersions = [((String) project.minecraft_version)]
+		changelog = System.getenv("CHANGELOG")
+		loaders = ["fabric", "quilt"]
+	}
+
+	remapJar {
+		finalizedBy project.tasks.modrinth
+	}
+}
