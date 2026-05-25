@@ -338,6 +338,21 @@ public class Config {
         public Map<Identifier, WrappedText> worldNameOverrides = new HashMap<>();
     }
 
+    @ConfigCategory
+    @SerializedName("keep_inventory_zones")
+    public KeepInventoryZones keepInventoryZones = new KeepInventoryZones();
+
+    public static class KeepInventoryZones {
+        @SerializedName("enabled")
+        public boolean enabled = true;
+
+        @SerializedName("except_items")
+        public Set<Identifier> exceptItems = new HashSet<>(Set.of(new Identifier("minecraft", "sugar")));
+
+        @SerializedName("zones")
+        public List<Arena> zones = new ArrayList<>();
+    }
+
     private static List<String> getDefaultProtectedGui() {
         List<String> list = new ArrayList<>();
 
@@ -439,7 +454,9 @@ public class Config {
         public int z2;
 
         public boolean contains(int x, int y, int z) {
-            return x1 < x && x2 > x && y1 < y && y2 > y && z1 < z && z2 > z;
+            return Math.min(x1, x2) <= x && Math.max(x1, x2) >= x
+                && Math.min(y1, y2) <= y && Math.max(y1, y2) >= y
+                && Math.min(z1, z2) <= z && Math.max(z1, z2) >= z;
         }
     }
 }

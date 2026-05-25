@@ -10,8 +10,10 @@ import eu.pb4.graves.config.data.WrappedText;
 import eu.pb4.graves.event.GraveValidPosCheckEvent;
 import eu.pb4.graves.event.PlayerGraveCreationEvent;
 import eu.pb4.graves.grave.Grave;
+import eu.pb4.graves.grave.GraveInventoryMask;
 import eu.pb4.graves.grave.GraveManager;
 import eu.pb4.graves.grave.PositionedItemStack;
+import eu.pb4.graves.mixin.PlayerInventoryAccessor;
 import eu.pb4.graves.registry.GraveBlock;
 import eu.pb4.graves.registry.GraveBlockEntity;
 import eu.pb4.graves.registry.SafeXPEntity;
@@ -284,8 +286,87 @@ public class GraveUtils {
         }
     }
 
+    public static boolean isInKeepInventoryZone(ServerPlayerEntity player) {
+        var config = ConfigManager.getConfig();
+        if (!config.keepInventoryZones.enabled) {
+            return false;
+        }
+
+        var zones = config.keepInventoryZones.zones;
+        if (zones == null || zones.isEmpty()) {
+            return false;
+        }
+
+        var pos = player.getBlockPos();
+        for (var zone : zones) {
+            if (zone.contains(pos.getX(), pos.getY(), pos.getZ())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if an item is in the exceptItems list for keep-inventory zones.
+     */
+    public static boolean isExceptedItem(ItemStack stack) {
+        var config = ConfigManager.getConfig();
+        return config != null && config.keepInventoryZones.enabled
+                && config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(stack.getItem()));
+    }
+
+    /**
+     * Manually scans the player's inventory and only extracts items that match the
+     * exceptItems config into the items list. Non-excepted items are left untouched
+     * in their inventory slots (exactly like blocked_items), so they survive death/respawn.
+     */
+    private static void collectExceptedItemsOnly(ServerPlayerEntity player, List<PositionedItemStack> items) {
+        var config = ConfigManager.getConfig();
+        if (config.keepInventoryZones.exceptItems.isEmpty()) {
+            return; // No items to extract
+        }
+
+        var inventory = player.getInventory();
+        var vanillaMask = VanillaInventoryMask.INSTANCE;
+
+        // Scan main inventory
+        for (int slot = 0; slot < inventory.main.size(); slot++) {
+            ItemStack stack = inventory.main.get(slot);
+            if (!stack.isEmpty() && config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(stack.getItem()))) {
+                if (!GravesApi.canAddItem(player, stack)) {
+                    continue;
+                }
+                inventory.main.set(slot, ItemStack.EMPTY);
+                items.add(new PositionedItemStack(stack, slot, vanillaMask, null, Set.of()));
+            }
+        }
+
+        // Scan armor
+        for (int slot = 0; slot < inventory.armor.size(); slot++) {
+            ItemStack stack = inventory.armor.get(slot);
+            if (!stack.isEmpty() && config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(stack.getItem()))) {
+                if (!GravesApi.canAddItem(player, stack)) {
+                    continue;
+                }
+                inventory.armor.set(slot, ItemStack.EMPTY);
+                items.add(new PositionedItemStack(stack, inventory.main.size() + slot, vanillaMask, null, Set.of()));
+            }
+        }
+
+        // Scan offhand
+        ItemStack offhandStack = inventory.offHand.get(0);
+        if (!offhandStack.isEmpty() && config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(offhandStack.getItem()))) {
+            if (GravesApi.canAddItem(player, offhandStack)) {
+                inventory.offHand.set(0, ItemStack.EMPTY);
+                items.add(new PositionedItemStack(offhandStack, 40, vanillaMask, null, Set.of()));
+            }
+        }
+    }
+
     public static void createGrave(ServerPlayerEntity player, DamageSource source) {
         Config config = ConfigManager.getConfig();
+
+        boolean playerInKeepInventoryZone = isInKeepInventoryZone(player);
 
         if (player.getWorld().getGameRules().getBoolean(GameRules.KEEP_INVENTORY)
                 || config.placement.blacklistedWorlds.contains(player.getWorld().getRegistryKey().getValue())
@@ -334,11 +415,19 @@ public class GraveUtils {
                     }
                     List<PositionedItemStack> items = new ArrayList<>();
 
-                    for (var mask : GravesApi.getAllInventoryMasks()) {
-                        try {
-                            mask.addToGrave(player, (stack, slot, nbt, tags) -> items.add(new PositionedItemStack(stack, slot, mask, nbt, Set.of(tags))));
-                        } catch (Throwable e) {
-                            GravesMod.LOGGER.error("Failed to add items from '{}'!", mask.getId(), e);
+                    if (playerInKeepInventoryZone) {
+                        // In keep-inventory zones: only extract "excepted items" into the grave.
+                        // Non-excepted items stay in inventory slots (like blocked_items), which
+                        // ensures they survive respawn via the copyFrom() mixin.
+                        collectExceptedItemsOnly(player, items);
+                    } else {
+                        // Normal behavior: masks collect all eligible items
+                        for (var mask : GravesApi.getAllInventoryMasks()) {
+                            try {
+                                mask.addToGrave(player, (stack, slot, nbt, tags) -> items.add(new PositionedItemStack(stack, slot, mask, nbt, Set.of(tags))));
+                            } catch (Throwable e) {
+                                GravesMod.LOGGER.error("Failed to add items from '{}'!", mask.getId(), e);
+                            }
                         }
                     }
 

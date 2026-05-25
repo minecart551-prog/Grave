@@ -6,6 +6,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,8 +22,16 @@ public abstract class PlayerEntityMixin extends LivingEntity {
 
     @Inject(method = "dropInventory", cancellable = true, at = @At("HEAD"))
     private void onDropInventory(CallbackInfo ci) {
-        // Replicate dropInventory but skip blocked items
         PlayerEntity player = (PlayerEntity) (Object) this;
+
+        // If player is in a keep-inventory zone, cancel all item drops.
+        // The grave creation handles extracting only excepted items into a grave.
+        if (player instanceof ServerPlayerEntity serverPlayer && GraveUtils.isInKeepInventoryZone(serverPlayer)) {
+            ci.cancel();
+            return;
+        }
+
+        // Replicate dropInventory but skip blocked items
         var inventory = player.getInventory();
         
         // Drop main inventory

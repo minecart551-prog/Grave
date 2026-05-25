@@ -6,13 +6,16 @@ import eu.pb4.graves.registry.GraveCompassItem;
 import eu.pb4.graves.other.PlayerAdditions;
 import eu.pb4.graves.other.GraveUtils;
 import net.minecraft.block.BlockState;
+import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -63,6 +66,7 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
         
         // Transfer blocked items from old player to new player on death
         if (!alive) {
+            var config = ConfigManager.getConfig();
             var oldInventory = oldPlayer.getInventory();
             var newInventory = this.getInventory();
             
@@ -88,6 +92,53 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
             ItemStack oldOffhand = oldInventory.offHand.get(0);
             if (!oldOffhand.isEmpty() && GraveUtils.isBlockedItem(oldOffhand)) {
                 newInventory.offHand.set(0, oldOffhand.copy());
+            }
+
+            // In keep-inventory zones: copy non-excepted items that were left in inventory slots
+            if (config.keepInventoryZones.enabled && !config.keepInventoryZones.zones.isEmpty()) {
+                // Only attempt copy if old player died within a zone - check their position
+                // Since copyFrom happens after death and before respawn, check old player
+                var zonePos = oldPlayer.getBlockPos();
+                boolean inZone = false;
+                for (var zone : config.keepInventoryZones.zones) {
+                    if (zone.contains(zonePos.getX(), zonePos.getY(), zonePos.getZ())) {
+                        inZone = true;
+                        break;
+                    }
+                }
+
+                if (inZone && !config.keepInventoryZones.exceptItems.isEmpty()) {
+                    // Copy non-excepted items from main inventory
+                    for (int i = 0; i < oldInventory.main.size(); i++) {
+                        ItemStack stack = oldInventory.main.get(i);
+                        if (!stack.isEmpty() && !config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(stack.getItem()))
+                                && !GraveUtils.isBlockedItem(stack) && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                            if (newInventory.main.get(i).isEmpty()) {
+                                newInventory.main.set(i, stack.copy());
+                            }
+                        }
+                    }
+
+                    // Copy non-excepted items from armor
+                    for (int i = 0; i < oldInventory.armor.size(); i++) {
+                        ItemStack stack = oldInventory.armor.get(i);
+                        if (!stack.isEmpty() && !config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(stack.getItem()))
+                                && !GraveUtils.isBlockedItem(stack) && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                            if (newInventory.armor.get(i).isEmpty()) {
+                                newInventory.armor.set(i, stack.copy());
+                            }
+                        }
+                    }
+
+                    // Copy non-excepted items from offhand
+                    ItemStack offhandStack = oldInventory.offHand.get(0);
+                    if (!offhandStack.isEmpty() && !config.keepInventoryZones.exceptItems.contains(Registries.ITEM.getId(offhandStack.getItem()))
+                            && !GraveUtils.isBlockedItem(offhandStack) && !EnchantmentHelper.hasVanishingCurse(offhandStack)) {
+                        if (newInventory.offHand.get(0).isEmpty()) {
+                            newInventory.offHand.set(0, offhandStack.copy());
+                        }
+                    }
+                }
             }
         }
     }
