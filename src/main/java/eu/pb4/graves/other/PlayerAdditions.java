@@ -13,4 +13,8 @@ public interface PlayerAdditions {
     void graves$setLastGrave(long graveId);
 
     void graves$setInvulnerable(boolean value);
+
+    boolean graves$diedOfSuffocation();
+
+    void graves$setDiedOfSuffocation(boolean diedOfSuffocation);
 }

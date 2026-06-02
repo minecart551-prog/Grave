@@ -2,6 +2,7 @@ package eu.pb4.graves.mixin;
 
 import eu.pb4.graves.GravesMod;
 import eu.pb4.graves.other.GraveUtils;
+import eu.pb4.graves.other.PlayerAdditions;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -20,6 +21,12 @@ public abstract class LivingEntityMixin {
     private void replaceWithGrave(DamageSource source, CallbackInfo ci) {
         if (((Object) this) instanceof ServerPlayerEntity player) {
             try {
+                // For suffocation death: skip everything (no grave, no item drops)
+                if (GraveUtils.isSuffocationDamage(source)) {
+                    ((PlayerAdditions) player).graves$setDiedOfSuffocation(true);
+                    ci.cancel();
+                    return;
+                }
                 GraveUtils.createGrave(player, source);
             } catch (Throwable e) {
                 player.sendMessage(Text.literal("Failed to create a grave due to an exception! See logs for more information and report it!").formatted(Formatting.RED));

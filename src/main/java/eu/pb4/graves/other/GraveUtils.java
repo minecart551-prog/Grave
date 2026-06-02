@@ -316,6 +316,42 @@ public class GraveUtils {
     }
 
     /**
+     * Checks if the damage source is suffocation (in_wall).
+     */
+    public static boolean isSuffocationDamage(DamageSource source) {
+        return source.getTypeRegistryEntry().getKey().isPresent()
+                && source.getTypeRegistryEntry().getKey().get().getValue().equals(new Identifier("minecraft", "in_wall"));
+    }
+
+    /**
+     * Copies all non-empty, non-vanishing items from old inventory to new inventory.
+     * Used to keep items on suffocation death where no grave is created.
+     */
+    public static void copyAllItems(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer) {
+        var oldInventory = oldPlayer.getInventory();
+        var newInventory = newPlayer.getInventory();
+
+        for (int i = 0; i < oldInventory.main.size(); i++) {
+            ItemStack stack = oldInventory.main.get(i);
+            if (!stack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                newInventory.main.set(i, stack.copy());
+            }
+        }
+
+        for (int i = 0; i < oldInventory.armor.size(); i++) {
+            ItemStack stack = oldInventory.armor.get(i);
+            if (!stack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                newInventory.armor.set(i, stack.copy());
+            }
+        }
+
+        ItemStack offhandStack = oldInventory.offHand.get(0);
+        if (!offhandStack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(offhandStack)) {
+            newInventory.offHand.set(0, offhandStack.copy());
+        }
+    }
+
+    /**
      * Manually scans the player's inventory and only extracts items that match the
      * exceptItems config into the items list. Non-excepted items are left untouched
      * in their inventory slots (exactly like blocked_items), so they survive death/respawn.
@@ -367,10 +403,12 @@ public class GraveUtils {
         Config config = ConfigManager.getConfig();
 
         boolean playerInKeepInventoryZone = isInKeepInventoryZone(player);
+        boolean playerDiedOfSuffocation = isSuffocationDamage(source);
 
         if (player.getWorld().getGameRules().getBoolean(GameRules.KEEP_INVENTORY)
                 || config.placement.blacklistedWorlds.contains(player.getWorld().getRegistryKey().getValue())
                 || config.placement.maxGraveCount == 0
+                || playerDiedOfSuffocation
         ) {
             return;
         }

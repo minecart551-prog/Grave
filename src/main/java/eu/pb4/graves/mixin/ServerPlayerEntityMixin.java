@@ -41,6 +41,9 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
     @Unique
     private boolean graves$isInvulnerable = false;
 
+    @Unique
+    private boolean graves$diedOfSuffocation = false;
+
     @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
     private void graves$loadNbt(NbtCompound nbt, CallbackInfo ci) {
         if (nbt.contains("LastGraveId", NbtElement.LONG_TYPE)) {
@@ -69,6 +72,22 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
             var config = ConfigManager.getConfig();
             var oldInventory = oldPlayer.getInventory();
             var newInventory = this.getInventory();
+
+            // On suffocation death: copy all items (no grave created)
+            // The LivingEntityMixin cancels the entire drop() event for suffocation,
+            // so items are still in the old player's inventory.
+            // We check by looking if the old player still has items in slots
+            // (since the drop was cancelled, items shouldn't be cleared)
+            boolean hasItemsInOldInv = false;
+            for (int i = 0; i < oldInventory.main.size() && !hasItemsInOldInv; i++) {
+                if (!oldInventory.main.get(i).isEmpty()) {
+                    hasItemsInOldInv = true;
+                }
+            }
+            if (hasItemsInOldInv && ((PlayerAdditions) oldPlayer).graves$diedOfSuffocation()) {
+                GraveUtils.copyAllItems(oldPlayer, (ServerPlayerEntity) (Object) this);
+                return;
+            }
             
             // Copy blocked items from main inventory
             for (int i = 0; i < oldInventory.main.size(); i++) {
@@ -182,5 +201,15 @@ public abstract class ServerPlayerEntityMixin extends PlayerEntity implements Pl
     @Override
     public void graves$setInvulnerable(boolean value) {
         this.graves$isInvulnerable = value;
+    }
+
+    @Override
+    public boolean graves$diedOfSuffocation() {
+        return this.graves$diedOfSuffocation;
+    }
+
+    @Override
+    public void graves$setDiedOfSuffocation(boolean diedOfSuffocation) {
+        this.graves$diedOfSuffocation = diedOfSuffocation;
     }
 }
