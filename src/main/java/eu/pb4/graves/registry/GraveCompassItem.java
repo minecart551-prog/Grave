@@ -14,6 +14,7 @@ import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.world.World;
@@ -36,11 +37,35 @@ public class GraveCompassItem extends Item implements PolymerItem {
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         ItemStack stack = user.getStackInHand(hand);
-        if (user instanceof ServerPlayerEntity serverPlayerEntity && ConfigManager.getConfig().interactions.useDeathCompassToOpenGui && stack.hasNbt() && stack.getNbt().contains("GraveId", NbtElement.LONG_TYPE)) {
-            Grave grave = GraveManager.INSTANCE.getId(user.getStackInHand(hand).getNbt().getLong("GraveId"));
-            grave.openUi(serverPlayerEntity, false, false);
+        if (user instanceof ServerPlayerEntity serverPlayerEntity
+                && ConfigManager.getConfig().interactions.useDeathCompassToOpenGui
+                && stack.hasNbt() && stack.getNbt().contains("GraveId", NbtElement.LONG_TYPE)) {
+            Grave grave = GraveManager.INSTANCE.getId(stack.getNbt().getLong("GraveId"));
+
+            if (grave != null) {
+                // Check if player is within 2 blocks of the grave
+                var graveLoc = grave.getLocation();
+                var playerWorld = serverPlayerEntity.getServerWorld();
+
+                if (playerWorld.getRegistryKey().getValue().equals(graveLoc.world())
+                        && isWithinDistance(playerWorld, graveLoc.blockPos().getX(), graveLoc.blockPos().getY(), graveLoc.blockPos().getZ(),
+                        serverPlayerEntity.getBlockX(), serverPlayerEntity.getBlockY(), serverPlayerEntity.getBlockZ(), 2.0)) {
+                    // Within 2 blocks: quick equip items directly
+                    grave.quickEquip(serverPlayerEntity);
+                } else {
+                    // Far away: open GUI as before
+                    grave.openUi(serverPlayerEntity, false, false);
+                }
+            }
         }
         return TypedActionResult.pass(user.getStackInHand(hand));
+    }
+
+    private static boolean isWithinDistance(ServerWorld world, int graveX, int graveY, int graveZ, int playerX, int playerY, int playerZ, double distance) {
+        double d = (double) (graveX - playerX);
+        double e = (double) (graveY - playerY);
+        double f = (double) (graveZ - playerZ);
+        return d * d + e * e + f * f <= distance * distance;
     }
 
     @Override
