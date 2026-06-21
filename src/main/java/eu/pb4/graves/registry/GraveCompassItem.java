@@ -15,10 +15,14 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 public class GraveCompassItem extends Item implements PolymerItem {
     public static Item INSTANCE = new GraveCompassItem();
@@ -66,6 +70,14 @@ public class GraveCompassItem extends Item implements PolymerItem {
         double e = (double) (graveY - playerY);
         double f = (double) (graveZ - playerZ);
         return d * d + e * e + f * f <= distance * distance;
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
+        super.appendTooltip(stack, world, tooltip, context);
+        if (stack.hasNbt() && stack.getNbt().contains("GraveId", NbtElement.LONG_TYPE)) {
+            tooltip.add(Text.translatable("item.universal_graves.compass.tooltip").formatted(Formatting.GRAY));
+        }
     }
 
     @Override

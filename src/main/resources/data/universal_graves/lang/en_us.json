@@ -52,6 +52,8 @@
   "text.graves.teleport.teleport_cancelled": "Cancelled teleportation",
 
   "item.universal_graves.grave_compass": "Grave Compass",
+  "item.universal_graves.compass.tooltip": "Right-click when near grave to retrieve items",
+
   "block.universal_graves.grave": "Grave",
   "block.universal_graves.visual_grave": "Emptied Grave",
   "block.universal_graves.container_grave": "Gravestone",
