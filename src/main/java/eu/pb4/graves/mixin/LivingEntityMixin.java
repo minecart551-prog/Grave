@@ -21,8 +21,8 @@ public abstract class LivingEntityMixin {
     private void replaceWithGrave(DamageSource source, CallbackInfo ci) {
         if (((Object) this) instanceof ServerPlayerEntity player) {
             try {
-                // For suffocation death: skip everything (no grave, no item drops)
-                if (GraveUtils.isSuffocationDamage(source)) {
+                // For suffocation/void death: skip everything (no grave, no item drops)
+                if (GraveUtils.isKeepInventoryDamage(source)) {
                     ((PlayerAdditions) player).graves$setDiedOfSuffocation(true);
                     ci.cancel();
                     return;

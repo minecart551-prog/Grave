@@ -316,11 +316,16 @@ public class GraveUtils {
     }
 
     /**
-     * Checks if the damage source is suffocation (in_wall).
+     * Checks if the damage source is suffocation (in_wall) or void (out_of_world).
+     * For these damage types, the player keeps all items (no grave created).
      */
-    public static boolean isSuffocationDamage(DamageSource source) {
-        return source.getTypeRegistryEntry().getKey().isPresent()
-                && source.getTypeRegistryEntry().getKey().get().getValue().equals(new Identifier("minecraft", "in_wall"));
+    public static boolean isKeepInventoryDamage(DamageSource source) {
+        if (source.getTypeRegistryEntry().getKey().isEmpty()) {
+            return false;
+        }
+        Identifier id = source.getTypeRegistryEntry().getKey().get().getValue();
+        return id.equals(new Identifier("minecraft", "in_wall"))
+                || id.equals(new Identifier("minecraft", "out_of_world"));
     }
 
     /**
@@ -403,12 +408,12 @@ public class GraveUtils {
         Config config = ConfigManager.getConfig();
 
         boolean playerInKeepInventoryZone = isInKeepInventoryZone(player);
-        boolean playerDiedOfSuffocation = isSuffocationDamage(source);
+        boolean playerDiedOfKeepInventoryDamage = isKeepInventoryDamage(source);
 
         if (player.getWorld().getGameRules().getBoolean(GameRules.KEEP_INVENTORY)
                 || config.placement.blacklistedWorlds.contains(player.getWorld().getRegistryKey().getValue())
                 || config.placement.maxGraveCount == 0
-                || playerDiedOfSuffocation
+                || playerDiedOfKeepInventoryDamage
         ) {
             return;
         }
