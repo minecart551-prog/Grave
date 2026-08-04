@@ -1,6 +1,7 @@
 package eu.pb4.graves.mixin;
 
 import eu.pb4.graves.GravesMod;
+import eu.pb4.graves.network.GravesNetworking;
 import eu.pb4.graves.other.GraveUtils;
 import eu.pb4.graves.other.PlayerAdditions;
 import net.minecraft.entity.LivingEntity;
@@ -9,7 +10,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,14 +20,19 @@ public abstract class LivingEntityMixin {
     @Inject(method = "drop", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;dropInventory()V", shift = At.Shift.BEFORE), cancellable = true)
     private void replaceWithGrave(DamageSource source, CallbackInfo ci) {
         if (((Object) this) instanceof ServerPlayerEntity player) {
+            // Always cancel dropInventory() — items stay in inventory
+            ci.cancel();
+
             try {
                 // For suffocation/void death: skip everything (no grave, no item drops)
                 if (GraveUtils.isKeepInventoryDamage(source)) {
                     ((PlayerAdditions) player).graves$setDiedOfSuffocation(true);
-                    ci.cancel();
+                    GravesNetworking.sendGraveCreated(player);
                     return;
                 }
-                GraveUtils.createGrave(player, source);
+
+                // Schedule grave creation with delay so NPC scripts can scan/strip inventory first
+                GravesMod.PENDING_GRAVES.add(new GravesMod.PendingGrave(player, source, GravesMod.GRAVE_DELAY_TICKS));
             } catch (Throwable e) {
                 player.sendMessage(Text.literal("Failed to create a grave due to an exception! See logs for more information and report it!").formatted(Formatting.RED));
                 player.sendMessage(Text.literal(e.toString()).formatted(Formatting.RED));

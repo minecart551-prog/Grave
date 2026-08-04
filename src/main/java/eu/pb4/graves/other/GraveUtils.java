@@ -14,6 +14,7 @@ import eu.pb4.graves.grave.GraveInventoryMask;
 import eu.pb4.graves.grave.GraveManager;
 import eu.pb4.graves.grave.PositionedItemStack;
 import eu.pb4.graves.mixin.PlayerInventoryAccessor;
+import eu.pb4.graves.network.GravesNetworking;
 import eu.pb4.graves.registry.GraveBlock;
 import eu.pb4.graves.registry.GraveBlockEntity;
 import eu.pb4.graves.registry.SafeXPEntity;
@@ -415,8 +416,11 @@ public class GraveUtils {
                 || config.placement.maxGraveCount == 0
                 || playerDiedOfKeepInventoryDamage
         ) {
+            GravesNetworking.sendGraveCreated(player);
             return;
         }
+
+        boolean graveQueued = false;
 
         WrappedText text = null;
         var placeholders = Map.of(
@@ -454,6 +458,7 @@ public class GraveUtils {
 
                     BlockPos gravePos = result.pos();
                     if (gravePos == null) {
+                        GravesNetworking.sendGraveCreated(player);
                         return;
                     }
                     List<PositionedItemStack> items = new ArrayList<>();
@@ -480,6 +485,7 @@ public class GraveUtils {
                     }
 
                     if (items.isEmpty() && (!config.storage.canStoreOnlyXp || experience == 0)) {
+                        GravesNetworking.sendGraveCreated(player);
                         return;
                     }
 
@@ -557,7 +563,9 @@ public class GraveUtils {
                         if (text2 != null) {
                             player.sendMessage(text2.with(placeholders2));
                         }
+                        GravesNetworking.sendGraveCreated(player);
                     });
+                    graveQueued = true;
 
                 } else {
                     text = switch (result.result()) {
@@ -577,6 +585,9 @@ public class GraveUtils {
 
         if (text != null && !text.isEmpty()) {
             player.sendMessage(text.with(placeholders));
+        }
+        if (!graveQueued) {
+            GravesNetworking.sendGraveCreated(player);
         }
     }
 

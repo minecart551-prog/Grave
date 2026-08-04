@@ -4,8 +4,10 @@ import eu.pb4.common.protection.api.CommonProtection;
 import eu.pb4.graves.compat.*;
 import eu.pb4.graves.config.ConfigManager;
 import eu.pb4.graves.grave.GraveManager;
+import eu.pb4.graves.network.GravesNetworking;
 import eu.pb4.graves.other.Commands;
 import eu.pb4.graves.other.GraveProtectionProvider;
+import eu.pb4.graves.other.GraveUtils;
 import eu.pb4.graves.other.VanillaInventoryMask;
 import eu.pb4.graves.registry.*;
 import eu.pb4.polymer.core.api.block.PolymerBlockUtils;
@@ -29,7 +31,11 @@ import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class GravesMod implements ModInitializer {
@@ -39,6 +45,22 @@ public class GravesMod implements ModInitializer {
     public static ModContainer CONTAINER = FabricLoader.getInstance().getModContainer("universal-graves").get();
 
     public static final List<Runnable> DO_ON_NEXT_TICK = new ArrayList<>();
+
+    // Delayed grave creation: items stay in inventory for GRAVE_DELAY_TICKS so NPC scripts can strip them first
+    public static final int GRAVE_DELAY_TICKS = 30; // 30 ticks = 1.5 seconds
+    public static final List<PendingGrave> PENDING_GRAVES = new ArrayList<>();
+
+    public static class PendingGrave {
+        public final ServerPlayerEntity player;
+        public final DamageSource source;
+        public int ticksLeft;
+
+        public PendingGrave(ServerPlayerEntity player, DamageSource source, int ticksLeft) {
+            this.player = player;
+            this.source = source;
+            this.ticksLeft = ticksLeft;
+        }
+    }
 
     @Override
     public void onInitialize() {
@@ -72,6 +94,10 @@ public class GravesMod implements ModInitializer {
 
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
             PolymerResourcePackUtils.addModAssets("universal-graves");
+        }
+
+        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
+            GravesNetworking.registerClient();
         }
 
         CommonProtection.register(new Identifier("universal_graves", "graves"), GraveProtectionProvider.INSTANCE);
@@ -109,6 +135,20 @@ public class GravesMod implements ModInitializer {
 
         ServerTickEvents.END_SERVER_TICK.register(s -> {
             GraveManager.INSTANCE.tick(s);
+
+            // Process delayed grave creations
+            Iterator<PendingGrave> graveIt = PENDING_GRAVES.iterator();
+            while (graveIt.hasNext()) {
+                PendingGrave pending = graveIt.next();
+                if (pending.ticksLeft-- <= 0) {
+                    graveIt.remove();
+                    try {
+                        GraveUtils.createGrave(pending.player, pending.source);
+                    } catch (Throwable e) {
+                        GravesMod.LOGGER.error("Failed to create delayed grave!", e);
+                    }
+                }
+            }
 
             var copied = new ArrayList<>(DO_ON_NEXT_TICK);
             DO_ON_NEXT_TICK.clear();
